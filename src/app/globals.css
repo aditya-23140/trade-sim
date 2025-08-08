@@ -32,3 +32,23 @@ body {
   font-weight: 500;
   font-style: normal;
 }
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* ::-webkit-scrollbar-track {
+  width: 10px;
+  background: transparent;
+} */
+
+/* ::-webkit-scrollbar-thumb {
+  background-color: #c797ff;
+  border-radius: 4px;
+} */
+
+body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
