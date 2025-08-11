@@ -23,15 +23,6 @@ import Image from "next/image";
 
 const DEFAULT_SYMBOL = "BTCUSDT";
 
-const INTERVALS: { label: string; value: Interval }[] = [
-  { label: "1m", value: "1m" },
-  { label: "5m", value: "5m" },
-  { label: "15m", value: "15m" },
-  { label: "1h", value: "1h" },
-  { label: "4h", value: "4h" },
-  { label: "1d", value: "1d" },
-];
-
 const formatVolume = (value: number): string => {
   if (value >= 1_000_000_000) {
     return (value / 1_000_000_000).toFixed(2) + "B";
@@ -43,6 +34,74 @@ const formatVolume = (value: number): string => {
     return value.toString();
   }
 };
+
+interface CustomDropdownProps {
+  options: Interval[];
+  value: string;
+  onChange: (value: Interval) => void;
+  className?: string;
+}
+
+export function CustomDropdown({
+  options,
+  value,
+  onChange,
+  className = "",
+}: CustomDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedLabel = value;
+
+  return (
+    <div
+      ref={dropdownRef}
+      className={`relative inline-block text-left ${className}`}
+    >
+      <button
+        type="button"
+        className="px-3 py-2 rounded-md bg-black text-white cursor-pointer w-full text-left"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {selectedLabel}
+        <span className="inline-block ml-2">&#9662;</span>
+      </button>
+
+      {isOpen && (
+        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-black text-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+          {options.map((option) => (
+            <li
+              key={option}
+              className={`cursor-pointer px-3 py-2 hover:bg-gray-700 ${
+                option === value ? "bg-gray-800 font-semibold" : ""
+              }`}
+              onClick={() => {
+                onChange(option);
+                setIsOpen(false);
+              }}
+            >
+              {option}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function SymbolDropdown({
   symbolsList,
@@ -63,8 +122,6 @@ export function SymbolDropdown({
 
   return (
     <div className="flex items-center gap-2 relative">
-      <label className="text-xs text-gray-400 font-medium">Symbol</label>
-
       {/* Trigger */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -127,17 +184,33 @@ export function SymbolDropdown({
   );
 }
 
+const INTERVALS: Interval[] = [
+  "1m",
+  "3m",
+  "5m",
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "4h",
+  "6h",
+  "12h",
+  "1d",
+  "1w",
+  "1M",
+];
+
 export default function CustomBinance() {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const [interval, setInterval] = useState<Interval>("1m");
+  const wsSubscriptionRef = useRef<{ close: () => void } | null>(null);
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
+  const [symbolsList, setSymbolsList] = useState<SymbolWithIcon[]>([]);
   const [symbolIMG, setSymbolIMG] = useState(
     "https://cryptocurrencyliveprices.com/img/btc-bitcoin.png"
   );
-  const [interval, setInterval] = useState<Interval>("1m");
-  const wsSubscriptionRef = useRef<{ close: () => void } | null>(null);
-  const [symbolsList, setSymbolsList] = useState<SymbolWithIcon[]>([]);
 
   useEffect(() => {
     const fetchSymbolsAndVolumes = async () => {
@@ -264,6 +337,7 @@ export default function CustomBinance() {
       try {
         const history = await fetchKlines(symbol, interval, 500);
         if (cancelled) return;
+        if (!candleSeriesRef.current) return;
         // map to lightweight-charts format
         const bars = history.map((c) => ({
           time: c.time as UTCTimestamp,
@@ -276,6 +350,7 @@ export default function CustomBinance() {
         // set initial data
         candleSeriesRef.current.setData(bars);
 
+        let lastCandleTime = 0;
         // subscribe live updates
         wsSubscriptionRef.current = subscribeKlines(
           symbol,
@@ -283,6 +358,12 @@ export default function CustomBinance() {
           (candle: Candle) => {
             // The `isFinal` parameter is not needed
             if (!candleSeriesRef.current) return;
+
+            if (candle.time < lastCandleTime) {
+              return; // ignore older candle
+            }
+
+            lastCandleTime = candle.time;
 
             // ✅ CORRECT: Use the library's `update` method.
             // This is the only code needed. It efficiently updates the last
@@ -312,16 +393,10 @@ export default function CustomBinance() {
     };
   }, [symbol, interval]);
 
-  // small helper to format symbol input (if user types with slash or : remove)
-  const normalizeSymbol = (s: string) =>
-    s.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
-
   return (
-    <main className="md:h-full h-[100%] w-full mx-auto bg-[#0f0f0f] text-white flex flex-col">
-      <div
-        className={`flex items-center gap-3 p-3`}
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-      >
+    <main className="md:h-full h-[100%] w-full mx-auto bg-[#0f0f0f00] rounded-2xl text-white flex flex-col">
+      <div ref={chartContainerRef} className="w-full h-[96%] mt-auto" />
+      <div className="absolute top-0 right-2 flex gap-4 mt-2">
         <div className="flex items-center gap-2">
           <SymbolDropdown
             symbolsList={symbolsList}
@@ -332,23 +407,12 @@ export default function CustomBinance() {
             formatVolume={formatVolume}
           />
         </div>
-
-        <div className="flex items-center gap-1">
-          {INTERVALS.map((it) => (
-            <button
-              key={it.value}
-              onClick={() => setInterval(it.value)}
-              className={`px-2 py-1 rounded text-sm ${
-                interval === it.value ? "bg-gray-700" : "bg-gray-800"
-              }`}
-            >
-              {it.label}
-            </button>
-          ))}
-        </div>
+        <CustomDropdown
+          options={INTERVALS}
+          value={interval}
+          onChange={setInterval}
+        />
       </div>
-
-      <div ref={chartContainerRef} style={{ flex: 1, minHeight: 0 }} />
     </main>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { CustomDropdown, SymbolDropdown } from "./CustomBinance";
 
 interface ExchangeInfoSymbol {
   symbol: string;
@@ -33,10 +34,31 @@ interface Ticker24hr {
   count: number;
 }
 
+type Interval =
+  | "1m"
+  | "3m"
+  | "5m"
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "4h"
+  | "6h"
+  | "12h"
+  | "1d"
+  | "1w"
+  | "1M";
+
 interface SymbolVolume {
   symbol: string;
   quoteVolume: number;
 }
+
+interface SymbolWithIcon extends SymbolVolume {
+  icon?: string;
+}
+
+const DEFAULT_SYMBOL = "BTCUSDT";
 
 const formatVolume = (value: number): string => {
   if (value >= 1_000_000_000) {
@@ -50,16 +72,32 @@ const formatVolume = (value: number): string => {
   }
 };
 
-const timeList = ["1m", "5m", "15m", "30m", "1H", "2H", "4H", "1D", "1W", "1M"];
+const INTERVALS: Interval[] = [
+  "1m",
+  "3m",
+  "5m",
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "4h",
+  "6h",
+  "12h",
+  "1d",
+  "1w",
+  "1M",
+];
 
 const TradingView = () => {
   const container = useRef<HTMLDivElement>(null);
   const [hideToolbar, setHideToolbar] = useState(false);
-  const [symbol, setSymbol] = useState("SOLUSDT");
   const [time, setTime] = useState("2H");
-  const [symbolsList, setSymbolsList] = useState<SymbolVolume[]>([]);
+  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
+  const [symbolsList, setSymbolsList] = useState<SymbolWithIcon[]>([]);
+  const [symbolIMG, setSymbolIMG] = useState(
+    "https://cryptocurrencyliveprices.com/img/btc-bitcoin.png"
+  );
 
-  // Fetch symbols sorted by volume
   useEffect(() => {
     const fetchSymbolsAndVolumes = async () => {
       try {
@@ -80,14 +118,39 @@ const TradingView = () => {
         const symbolsWithVolume: SymbolVolume[] = tickers
           .filter((t: Ticker24hr) => usdtPairs.includes(t.symbol))
           .map((t: Ticker24hr) => ({
-            symbol: t.symbol,
+            symbol: t.symbol.replace("USDT", ""),
             quoteVolume: parseFloat(t.quoteVolume),
           }));
 
         // Sort by volume descending
         symbolsWithVolume.sort((a, b) => b.quoteVolume - a.quoteVolume);
+        const cpRes = await fetch("https://api.coinpaprika.com/v1/coins");
+        const cpCoins = await cpRes.json();
 
-        setSymbolsList(symbolsWithVolume);
+        // 3. Build symbol to id map (symbol in lowercase)
+        const cpMap: Record<string, string> = {};
+        cpCoins.forEach((coin: { id: string; symbol: string }) => {
+          if (!cpMap[coin.symbol.toLowerCase()]) {
+            cpMap[coin.symbol.toLowerCase()] = coin.id;
+          }
+        });
+
+        // 4. Build final list with icon URLs
+        const finalList: SymbolWithIcon[] = symbolsWithVolume.map((item) => {
+          const slug = cpMap[item.symbol.toLowerCase()];
+          // Coinpaprika icons URL format:
+          // https://coinpaprika.com/images/coins/{slug}.png
+          // slug example: btc-bitcoin
+          const iconUrl = slug
+            ? `https://cryptocurrencyliveprices.com/img/${slug}.png`
+            : "/edit.png";
+          return {
+            ...item,
+            icon: iconUrl,
+          };
+        });
+
+        setSymbolsList(finalList);
       } catch (err) {
         console.error("Failed to fetch symbols/volumes", err);
       }
@@ -148,32 +211,22 @@ const TradingView = () => {
       >
         {hideToolbar ? ">" : "<"}
       </button>
-      <div className="absolute -top-8 flex gap-4 mt-2">
-        <select
-          id="symbol"
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          className="px-3 py-2 rounded-md bg-black  text-white cursor-pointer focus:outline-none"
-        >
-          {symbolsList.map((s) => (
-            <option key={s.symbol} value={s.symbol}>
-              {s.symbol} — Vol:{" "}
-              {formatVolume(parseInt(s.quoteVolume.toFixed(0)))}
-            </option>
-          ))}
-        </select>
-        <select
-          id="time"
+      <div className="absolute -top-8 right-0 flex gap-4 mt-2">
+        <div className="flex items-center gap-2">
+          <SymbolDropdown
+            symbolsList={symbolsList}
+            symbol={symbol}
+            symbolIMG={symbolIMG}
+            setSymbolIMG={setSymbolIMG}
+            setSymbol={setSymbol}
+            formatVolume={formatVolume}
+          />
+        </div>
+        <CustomDropdown
+          options={INTERVALS}
           value={time}
-          onChange={(e) => setTime(e.target.value)}
-          className="px-3 py-2 rounded-md bg-black  text-white cursor-pointer focus:outline-none"
-        >
-          {timeList.map((s, index) => (
-            <option key={index} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          onChange={setTime}
+        />
       </div>
     </main>
   );

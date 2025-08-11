@@ -1,8 +1,6 @@
 // app/trading/chartData/binanceDatafeed.ts
 // TypeScript module that provides history & websocket subscription helpers for Binance klines.
 
-import { error } from "console";
-
 export type Interval =
   | "1m"
   | "3m"
@@ -166,14 +164,16 @@ export function subscribeKlines(
 
   return {
     close: () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
       if (
         ws &&
-        (ws.readyState === WebSocket.OPEN ||
-          ws.readyState === WebSocket.CONNECTING)
+        (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
       ) {
         ws.close(1000, "Manual close");
       }
     },
   };
-}
+}  
