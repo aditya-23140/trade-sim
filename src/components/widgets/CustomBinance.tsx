@@ -16,8 +16,10 @@ import {
   SymbolVolume,
   ExchangeInfoSymbol,
   Ticker24hr,
+  SymbolWithIcon,
 } from "./chartdata/binanceDatafeed";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
 
 const DEFAULT_SYMBOL = "BTCUSDT";
 
@@ -45,11 +47,15 @@ const formatVolume = (value: number): string => {
 export function SymbolDropdown({
   symbolsList,
   symbol,
+  symbolIMG,
+  setSymbolIMG,
   setSymbol,
   formatVolume,
 }: {
-  symbolsList: SymbolVolume[];
+  symbolsList: SymbolWithIcon[];
   symbol: string;
+  symbolIMG: string;
+  setSymbolIMG: (s: string) => void;
   setSymbol: (s: string) => void;
   formatVolume: (v: number) => string;
 }) {
@@ -66,7 +72,16 @@ export function SymbolDropdown({
                    flex items-center justify-between gap-2 min-w-[160px]
                    hover:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all"
       >
-        {symbol || "Select Symbol"}
+        <div className="flex items-center gap-2">
+          <Image
+            src={symbolIMG}
+            alt={symbol}
+            width={20}
+            height={20}
+            className="rounded-full"
+          />
+          <span className="text-gray-200 font-medium">{symbol}</span>
+        </div>
         <ChevronDownIcon
           className={`w-4 h-4 transition-transform ${
             isOpen ? "rotate-180" : ""
@@ -85,12 +100,22 @@ export function SymbolDropdown({
               key={s.symbol}
               onClick={() => {
                 setSymbol(s.symbol + "USDT");
+                setSymbolIMG(s.icon!);
                 setIsOpen(false);
               }}
               className="px-4 py-2 flex justify-between items-center cursor-pointer 
                          hover:bg-gray-800 transition-colors"
             >
-              <span className="text-gray-200 font-medium">{s.symbol}</span>
+              <div className="flex items-center gap-2">
+                <Image
+                  src={s.icon!}
+                  alt={s.symbol}
+                  width={20}
+                  height={20}
+                  className="rounded-full"
+                />
+                <span className="text-gray-200 font-medium">{s.symbol}</span>
+              </div>
               <span className="text-gray-400 text-xs">
                 Vol: {formatVolume(parseInt(s.quoteVolume.toFixed(0)))}
               </span>
@@ -107,9 +132,12 @@ export default function CustomBinance() {
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
+  const [symbolIMG, setSymbolIMG] = useState(
+    "https://cryptocurrencyliveprices.com/img/btc-bitcoin.png"
+  );
   const [interval, setInterval] = useState<Interval>("1m");
   const wsSubscriptionRef = useRef<{ close: () => void } | null>(null);
-  const [symbolsList, setSymbolsList] = useState<SymbolVolume[]>([]);
+  const [symbolsList, setSymbolsList] = useState<SymbolWithIcon[]>([]);
 
   useEffect(() => {
     const fetchSymbolsAndVolumes = async () => {
@@ -137,8 +165,33 @@ export default function CustomBinance() {
 
         // Sort by volume descending
         symbolsWithVolume.sort((a, b) => b.quoteVolume - a.quoteVolume);
+        const cpRes = await fetch("https://api.coinpaprika.com/v1/coins");
+        const cpCoins = await cpRes.json();
 
-        setSymbolsList(symbolsWithVolume);
+        // 3. Build symbol to id map (symbol in lowercase)
+        const cpMap: Record<string, string> = {};
+        cpCoins.forEach((coin: { id: string; symbol: string }) => {
+          if (!cpMap[coin.symbol.toLowerCase()]) {
+            cpMap[coin.symbol.toLowerCase()] = coin.id;
+          }
+        });
+
+        // 4. Build final list with icon URLs
+        const finalList: SymbolWithIcon[] = symbolsWithVolume.map((item) => {
+          const slug = cpMap[item.symbol.toLowerCase()];
+          // Coinpaprika icons URL format:
+          // https://coinpaprika.com/images/coins/{slug}.png
+          // slug example: btc-bitcoin
+          const iconUrl = slug
+            ? `https://cryptocurrencyliveprices.com/img/${slug}.png`
+            : "/edit.png";
+          return {
+            ...item,
+            icon: iconUrl,
+          };
+        });
+
+        setSymbolsList(finalList);
       } catch (err) {
         console.error("Failed to fetch symbols/volumes", err);
       }
@@ -273,6 +326,8 @@ export default function CustomBinance() {
           <SymbolDropdown
             symbolsList={symbolsList}
             symbol={symbol}
+            symbolIMG={symbolIMG}
+            setSymbolIMG={setSymbolIMG}
             setSymbol={setSymbol}
             formatVolume={formatVolume}
           />

@@ -1,6 +1,8 @@
 // app/trading/chartData/binanceDatafeed.ts
 // TypeScript module that provides history & websocket subscription helpers for Binance klines.
 
+import { error } from "console";
+
 export type Interval =
   | "1m"
   | "3m"
@@ -19,6 +21,10 @@ export type Interval =
 export interface SymbolVolume {
   symbol: string;
   quoteVolume: number;
+}
+
+export interface SymbolWithIcon extends SymbolVolume {
+  icon?: string;
 }
 
 export interface ExchangeInfoSymbol {
@@ -110,49 +116,63 @@ export function subscribeKlines(
   interval: Interval = "1m",
   onUpdate: (candle: Candle, isFinal: boolean) => void
 ) {
-  const s = `${symbol.toLowerCase()}@kline_${interval}`;
-  const url = `wss://stream.binance.com:9443/ws/${s}`;
-  const ws = new WebSocket(url);
+  let ws: WebSocket | null = null;
+  let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  const url = `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${interval}`;
 
-  ws.onopen = () => {
-    console.info("Binance WS open", url);
+  const connect = () => {
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      console.info("Binance WS open", url);
+    };
+
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (!msg.k) return;
+        const k = msg.k;
+        const candle: Candle = {
+          time: Math.floor(k.t / 1000),
+          open: parseFloat(k.o),
+          high: parseFloat(k.h),
+          low: parseFloat(k.l),
+          close: parseFloat(k.c),
+          volume: parseFloat(k.v),
+        };
+        const isFinal = k.x === true; // candle closed
+        onUpdate(candle, isFinal);
+      } catch (err) {
+        console.error("WS parse error", err);
+      }
+    };
+
+    ws.onerror = (e) => {
+      console.error("Binance WS error", e);
+    };
+
+    ws.onclose = (ev) => {
+      console.warn("Binance WS closed", ev.code, ev.reason);
+      // Auto-reconnect unless normal close (code 1000)
+      if (ev.code !== 1000) {
+        reconnectTimeout = setTimeout(() => {
+          connect();
+        }, 3000);
+      }
+    };
   };
 
-  ws.onmessage = (evt) => {
-    try {
-      const msg = JSON.parse(evt.data);
-      if (!msg.k) return;
-      const k = msg.k;
-      const candle: Candle = {
-        time: Math.floor(k.t / 1000),
-        open: parseFloat(k.o),
-        high: parseFloat(k.h),
-        low: parseFloat(k.l),
-        close: parseFloat(k.c),
-        volume: parseFloat(k.v),
-      };
-      const isFinal = k.x === true; // k.x true when candle is closed
-      onUpdate(candle, isFinal);
-    } catch (err) {
-      console.error("WS parse error", err);
-    }
-  };
-
-  ws.onerror = (e) => {
-    console.error("Binance WS error", e);
-  };
-
-  ws.onclose = (ev) => {
-    console.warn("Binance WS closed", ev.code, ev.reason);
-  };
+  connect();
 
   return {
     close: () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (
-        ws.readyState === WebSocket.OPEN ||
-        ws.readyState === WebSocket.CONNECTING
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING)
       ) {
-        ws.close();
+        ws.close(1000, "Manual close");
       }
     },
   };
