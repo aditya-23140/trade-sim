@@ -17,6 +17,7 @@ import {
   ExchangeInfoSymbol,
   Ticker24hr,
 } from "./chartdata/binanceDatafeed";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 
 const DEFAULT_SYMBOL = "BTCUSDT";
 
@@ -41,51 +42,110 @@ const formatVolume = (value: number): string => {
   }
 };
 
-export default function TradingClonePage() {
+export function SymbolDropdown({
+  symbolsList,
+  symbol,
+  setSymbol,
+  formatVolume,
+}: {
+  symbolsList: SymbolVolume[];
+  symbol: string;
+  setSymbol: (s: string) => void;
+  formatVolume: (v: number) => string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="flex items-center gap-2 relative">
+      <label className="text-xs text-gray-400 font-medium">Symbol</label>
+
+      {/* Trigger */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-200 text-sm 
+                   flex items-center justify-between gap-2 min-w-[160px]
+                   hover:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all"
+      >
+        {symbol || "Select Symbol"}
+        <ChevronDownIcon
+          className={`w-4 h-4 transition-transform ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {/* Menu */}
+      {isOpen && (
+        <div
+          className="absolute top-full left-[65px] mt-2 w-[220px] bg-gray-900 border border-gray-700 
+                     rounded-lg shadow-lg overflow-hidden z-50 max-h-64 overflow-y-auto"
+        >
+          {symbolsList.map((s) => (
+            <div
+              key={s.symbol}
+              onClick={() => {
+                setSymbol(s.symbol + "USDT");
+                setIsOpen(false);
+              }}
+              className="px-4 py-2 flex justify-between items-center cursor-pointer 
+                         hover:bg-gray-800 transition-colors"
+            >
+              <span className="text-gray-200 font-medium">{s.symbol}</span>
+              <span className="text-gray-400 text-xs">
+                Vol: {formatVolume(parseInt(s.quoteVolume.toFixed(0)))}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CustomBinance() {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
   const [interval, setInterval] = useState<Interval>("1m");
-  const [hideToolbar, setHideToolbar] = useState(false);
   const wsSubscriptionRef = useRef<{ close: () => void } | null>(null);
   const [symbolsList, setSymbolsList] = useState<SymbolVolume[]>([]);
 
   useEffect(() => {
-      const fetchSymbolsAndVolumes = async () => {
-        try {
-          const [exchangeInfoRes, tickerRes] = await Promise.all([
-            fetch("https://api.binance.com/api/v3/exchangeInfo"),
-            fetch("https://api.binance.com/api/v3/ticker/24hr"),
-          ]);
-  
-          const exchangeInfo = await exchangeInfoRes.json();
-          const tickers = await tickerRes.json();
-  
-          // Filter USDT pairs from exchangeInfo
-          const usdtPairs: string[] = exchangeInfo.symbols
-            .filter((s: ExchangeInfoSymbol) => s.symbol.endsWith("USDT"))
-            .map((s: ExchangeInfoSymbol) => s.symbol);
-  
-          // Map volume info and filter for only USDT pairs
-          const symbolsWithVolume: SymbolVolume[] = tickers
-            .filter((t: Ticker24hr) => usdtPairs.includes(t.symbol))
-            .map((t: Ticker24hr) => ({
-              symbol: t.symbol,
-              quoteVolume: parseFloat(t.quoteVolume),
-            }));
-  
-          // Sort by volume descending
-          symbolsWithVolume.sort((a, b) => b.quoteVolume - a.quoteVolume);
-  
-          setSymbolsList(symbolsWithVolume);
-        } catch (err) {
-          console.error("Failed to fetch symbols/volumes", err);
-        }
-      };
-  
-      fetchSymbolsAndVolumes();
-    }, []);
+    const fetchSymbolsAndVolumes = async () => {
+      try {
+        const [exchangeInfoRes, tickerRes] = await Promise.all([
+          fetch("https://api.binance.com/api/v3/exchangeInfo"),
+          fetch("https://api.binance.com/api/v3/ticker/24hr"),
+        ]);
+
+        const exchangeInfo = await exchangeInfoRes.json();
+        const tickers = await tickerRes.json();
+
+        // Filter USDT pairs from exchangeInfo
+        const usdtPairs: string[] = exchangeInfo.symbols
+          .filter((s: ExchangeInfoSymbol) => s.symbol.endsWith("USDT"))
+          .map((s: ExchangeInfoSymbol) => s.symbol);
+
+        // Map volume info and filter for only USDT pairs
+        const symbolsWithVolume: SymbolVolume[] = tickers
+          .filter((t: Ticker24hr) => usdtPairs.includes(t.symbol))
+          .map((t: Ticker24hr) => ({
+            symbol: t.symbol.replace("USDT", ""),
+            quoteVolume: parseFloat(t.quoteVolume),
+          }));
+
+        // Sort by volume descending
+        symbolsWithVolume.sort((a, b) => b.quoteVolume - a.quoteVolume);
+
+        setSymbolsList(symbolsWithVolume);
+      } catch (err) {
+        console.error("Failed to fetch symbols/volumes", err);
+      }
+    };
+
+    fetchSymbolsAndVolumes();
+  }, []);
 
   // create chart once
   useEffect(() => {
@@ -204,26 +264,18 @@ export default function TradingClonePage() {
     s.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
 
   return (
-    <main className="h-screen w-[80%] mx-auto bg-[#0f0f0f] text-white flex flex-col">
+    <main className="md:h-full h-[100%] w-full mx-auto bg-[#0f0f0f] text-white flex flex-col">
       <div
-        className={`flex items-center gap-3 p-3 ${hideToolbar ? "hidden" : ""}`}
+        className={`flex items-center gap-3 p-3`}
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-300">Symbol</label>
-          <select
-            id="symbol"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
-          >
-            {symbolsList.map((s) => (
-              <option key={s.symbol} value={s.symbol}>
-                {s.symbol} — Vol:{" "}
-                {formatVolume(parseInt(s.quoteVolume.toFixed(0)))}
-              </option>
-            ))}
-          </select>
+          <SymbolDropdown
+            symbolsList={symbolsList}
+            symbol={symbol}
+            setSymbol={setSymbol}
+            formatVolume={formatVolume}
+          />
         </div>
 
         <div className="flex items-center gap-1">
@@ -238,15 +290,6 @@ export default function TradingClonePage() {
               {it.label}
             </button>
           ))}
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => setHideToolbar((v) => !v)}
-            className="px-3 py-1 bg-gray-700 rounded text-sm"
-          >
-            Toggle Toolbar
-          </button>
         </div>
       </div>
 
