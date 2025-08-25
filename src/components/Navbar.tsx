@@ -4,7 +4,7 @@ import HoverElement from "./smallComponents/HoverElement";
 
 const Navbar = () => {
   return (
-    <div className="fixed max-md:hidden h-screen left-0 top-0 py-6 px-2">
+    <div className="fixed max-md:hidden z-30 h-screen left-0 top-0 py-6 px-2">
       <nav className="flex flex-col justify-between h-full items-center pt-4 pb-2 px-2 bg-[#222222] rounded-full z-50">
         <div className="flex group gap-2 manrope-regular relative">
           <Link href={"/"}>
