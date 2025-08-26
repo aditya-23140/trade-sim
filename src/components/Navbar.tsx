@@ -1,8 +1,23 @@
+"use client";
 import Image from "next/image";
 import Link from "next/link";
 import HoverElement from "./smallComponents/HoverElement";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 const Navbar = () => {
+  const { user, isSignedIn } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isSignedIn || !user) {
+      router.push("/sign-in");
+    }
+  }, [isSignedIn, router, user]);
+
+  if (!isSignedIn || !user) return null;
+
   return (
     <div className="fixed max-md:hidden z-30 h-screen left-0 top-0 py-6 px-2">
       <nav className="flex flex-col justify-between h-full items-center pt-4 pb-2 px-2 bg-[#222222] rounded-full z-50">
@@ -44,15 +59,27 @@ const Navbar = () => {
         </ul>
         <div className="flex flex-col group gap-2 items-center relative">
           <Link href={"/"}>
-            <Image src="/profile.png" width={32} height={32} alt="profile" />
+            <Image
+              src={`${user.imageUrl ? user.imageUrl : "/profile.png"}`}
+              width={32}
+              height={32}
+              alt="profile"
+              className="rounded-full"
+            />
           </Link>
           <div
             className="flex-col absolute left-12 bottom-0 backdrop-blur-lg rounded-md hidden group-hover:flex"
             style={{ backgroundColor: "#242424a5" }}
           >
-            <div className="w-full flex justify-between items-center border-b-2 p-2 border-[#515151]">
-              <span>Jhon Doe</span>
-              <Image src={"/user.png"} width={32} height={32} alt="profile" />
+            <div className="flex justify-between items-center border-b-2 p-2 border-[#515151]">
+              <span>{user.fullName}</span>
+              <Image
+                src={`${user.imageUrl ? user.imageUrl : "/user.png"}`}
+                width={36}
+                height={36}
+                alt="profile"
+                className="rounded-full"
+              />
             </div>
             <div className="text-sm bg-[#662fff] rounded-full m-2 flex">
               <span className="px-2 py-1">Balance: </span>
