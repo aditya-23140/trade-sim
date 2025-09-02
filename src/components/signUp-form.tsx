@@ -55,7 +55,7 @@ export function SignUp({ className, ...props }: React.ComponentProps<"div">) {
       .authenticateWithRedirect({
         strategy,
         redirectUrl: "/sign-in/sso-callback",
-        redirectUrlComplete: "/",
+        redirectUrlComplete: "/dashboard",
       })
       .catch((err) => {
         console.error(err, null, 2);

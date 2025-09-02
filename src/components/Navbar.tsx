@@ -3,20 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 import HoverElement from "./smallComponents/HoverElement";
 import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { SignedIn } from "@clerk/nextjs";
 
-const Navbar = () => {
-  const { user, isSignedIn } = useUser();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isSignedIn || !user) {
-      router.push("/sign-in");
-    }
-  }, [isSignedIn, router, user]);
-
-  if (!isSignedIn || !user) return null;
+const NavbarContent = () => {
+  const { user } = useUser();
 
   return (
     <div className="fixed max-md:hidden z-30 h-screen left-0 top-0 py-6 px-2">
@@ -60,7 +50,7 @@ const Navbar = () => {
         <div className="flex flex-col group gap-2 items-center relative">
           <Link href={"/"}>
             <Image
-              src={`${user.imageUrl ? user.imageUrl : "/profile.png"}`}
+              src={`${user!.imageUrl ? user!.imageUrl : "/profile.png"}`}
               width={32}
               height={32}
               alt="profile"
@@ -72,9 +62,9 @@ const Navbar = () => {
             style={{ backgroundColor: "#242424a5" }}
           >
             <div className="flex justify-between items-center border-b-2 p-2 border-[#515151]">
-              <span>{user.fullName}</span>
+              <span>{user!.fullName}</span>
               <Image
-                src={`${user.imageUrl ? user.imageUrl : "/user.png"}`}
+                src={`${user!.imageUrl ? user!.imageUrl : "/user.png"}`}
                 width={36}
                 height={36}
                 alt="profile"
@@ -91,6 +81,14 @@ const Navbar = () => {
         </div>
       </nav>
     </div>
+  );
+};
+
+const Navbar = () => {
+  return (
+    <SignedIn>
+      <NavbarContent />
+    </SignedIn>
   );
 };
 

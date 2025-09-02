@@ -56,7 +56,7 @@ export function LoginForm({
       .authenticateWithRedirect({
         strategy,
         redirectUrl: "/sign-in/sso-callback",
-        redirectUrlComplete: "/",
+        redirectUrlComplete: "/dashboard",
       })
       .then((res) => console.log(res))
       .catch((err) => {

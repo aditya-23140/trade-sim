@@ -213,19 +213,11 @@ const TradingViewWidget = memo(() => {
     widgetDiv.style.height = "calc(100% - 32px)";
     widgetDiv.style.width = "100%";
 
-    // Create copyright div
-    // const copyrightDiv = document.createElement("div");
-    // copyrightDiv.className = "tradingview-widget-copyright";
-    // copyrightDiv.innerHTML = `<a href="https://www.tradingview.com/symbols/BINANCE-${symbol}/?exchange=BINANCE" rel="noopener nofollow" target="_blank"><span class="blue-text">${symbol} chart by TradingView</span></a>`;
-
-    // Add divs to container
     container.current.appendChild(widgetDiv);
     // container.current.appendChild(copyrightDiv);
 
     // Create script with minimal configuration - remove problematic properties
     const script = document.createElement("script");
-    script.src =
-      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.type = "text/javascript";
     script.async = true;
 
@@ -249,6 +241,8 @@ const TradingViewWidget = memo(() => {
     };
 
     script.innerHTML = JSON.stringify(config);
+    script.src =
+      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     scriptRef.current = script;
 
     // Error handling
